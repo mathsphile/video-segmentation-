@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+
+  # ── Redis (message broker + result backend) ──────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: seg_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ── FastAPI Backend ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: seg_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/data/uploads
+      - OUTPUT_DIR=/data/outputs
+      - MAX_FILE_SIZE_MB=200
+    volumes:
+      - seg_data:/data
+      - ./backend:/app           # hot-reload in dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # ── Celery Worker ─────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: seg_worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/data/uploads
+      - OUTPUT_DIR=/data/outputs
+    volumes:
+      - seg_data:/data
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    # 2 concurrent workers; adjust --concurrency for more GPU jobs
+    command: celery -A tasks worker --loglevel=info --concurrency=2
+    restart: unless-stopped
+
+  # ── Next.js Frontend ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: seg_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  seg_data:
