@@ -27,7 +27,7 @@ const VOC_CLASSES = [
 
 const STEPS = [
   { num: '01', title: 'Upload', desc: 'Drag & drop or select your video file' },
-  { num: '02', title: 'Process', desc: 'AI segments every frame with DeepLabV3' },
+  { num: '02', title: 'Process', desc: 'SegVision Engine segments every frame with high precision' },
   { num: '03', title: 'Download', desc: 'Get H.264 side-by-side comparison MP4' },
 ]
 
@@ -35,8 +35,8 @@ const FEATURES = [
   {
     icon: '🎯',
     title: '21 Object Classes',
-    desc: 'Identifies people, cars, animals, furniture & more using PASCAL VOC labels.',
-    tag: 'PASCAL VOC'
+    desc: 'Identifies people, cars, animals, furniture & more using our Neural Engine.',
+    tag: 'SegVision'
   },
   {
     icon: '⚡',
@@ -135,12 +135,12 @@ export default function HomePage() {
           style={{ animation: 'word-in 0.5s ease forwards' }}
         >
           <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse inline-block" />
-          DeepLabV3 · ResNet-50 · PASCAL VOC 21 Classes
+          Proprietary Neural Engine · Neural Core v1.0 · 21+ Recognition Classes
         </div>
 
         {/* Headline */}
         <h1 className="text-5xl sm:text-7xl font-black tracking-tight leading-[1.05] mb-6">
-          {'AI Video'.split('').map((c,i) => (
+          {'Video'.split('').map((c,i) => (
             <span key={i} className="word-animate inline-block" style={{ animationDelay: `${i * 0.04}s` }}>
               {c === ' ' ? '\u00a0' : c}
             </span>
@@ -153,7 +153,7 @@ export default function HomePage() {
           className="text-lg text-slate-500 max-w-xl mx-auto leading-relaxed mb-10"
           style={{ animation: 'word-in 0.6s 0.4s ease forwards', opacity: 0 }}
         >
-          Upload any video and watch AI identify, colour, and label
+          Upload any video and watch SegVision identify, colour, and label
           every object in real-time — delivered as a stunning side-by-side comparison.
         </p>
 

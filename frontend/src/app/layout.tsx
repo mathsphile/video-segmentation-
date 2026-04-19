@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'SegVision — AI Video Segmentation',
-  description: 'Upload any video and get real-time semantic segmentation. Powered by DeepLabV3 + ResNet-50.',
+  title: 'SegVision — Video Segmentation',
+  description: 'Upload any video and get real-time semantic segmentation.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <span className="text-sm font-semibold text-slate-800">SegVision</span>
             </div>
-            <p className="text-xs text-slate-400">DeepLabV3 + ResNet-50 · PASCAL VOC 21 Classes · H.264 Output</p>
+            <p className="text-xs text-slate-400">SegVision Neural Engine · Neural Core v1.0 · H.264 Output</p>
             <a href="https://github.com/mathsphile/video-segmentation-" target="_blank" className="text-xs text-slate-400 hover:text-slate-700 transition-colors">
               GitHub ↗
             </a>

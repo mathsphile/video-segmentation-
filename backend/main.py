@@ -195,10 +195,11 @@ async def get_video(job_id: str):
     output_path = OUTPUT_DIR / f"{job_id}_output.mp4"
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="Result not ready yet")
+    headers = {"Content-Disposition": f'attachment; filename="segmented_{job_id}.mp4"'}
     return FileResponse(
         str(output_path),
         media_type="video/mp4",
-        filename=f"segmented_{job_id}.mp4",
+        headers=headers
     )
 
 

@@ -161,13 +161,16 @@ def _reencode_h264(raw_path: str, final_path: str, fps: float):
     ffmpeg = get_ffmpeg()
     cmd = [
         ffmpeg, "-y",
+        "-r", str(fps),          # Set input frame rate
         "-i", raw_path,
         "-vcodec", "libx264",
-        "-preset", "fast",
-        "-crf", "23",           # quality: 18=great, 28=ok; 23 is default
-        "-pix_fmt", "yuv420p",  # required for QuickTime / Safari compatibility
-        "-movflags", "+faststart",  # puts moov atom at start for streaming
-        "-an",                  # no audio track
+        "-pix_fmt", "yuv420p",   # required for QuickTime / Safari
+        "-preset", "medium",
+        "-crf", "23",            # quality
+        "-profile:v", "high",    # high compatibility profile
+        "-level", "4.0",
+        "-movflags", "+faststart",
+        "-an",                   # no audio
         final_path,
     ]
     logger.info(f"Re-encoding to H.264: {' '.join(cmd)}")

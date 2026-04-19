@@ -126,8 +126,9 @@ function ResultContent() {
           <div className="flex items-center gap-2 mb-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Segmentation Finished</span>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Your AI Result</h1>
+          </div>ct⇧⌥⌫
+          
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Your Result</h1>
           <p className="text-sm text-slate-500 mt-1">
             Job ID: <code className="text-orange-500 font-mono">{jobId?.slice(0, 12)}</code>
           </p>
@@ -137,7 +138,7 @@ function ResultContent() {
           <button onClick={copyLink} className="btn-outline px-4 py-2.5 text-sm flex items-center gap-2">
             {copied ? 'Link Copied!' : 'Copy Result Link'}
           </button>
-          <a href={videoUrl!} download className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
+          <a href={videoUrl!} download={`segmented_${jobId}.mp4`} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
             Download MP4
           </a>
         </div>
@@ -163,7 +164,7 @@ function ResultContent() {
                 )}
              </button>
              <div className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white uppercase tracking-widest">
-               DeepLabV3+ Output
+               SegVision Engine Output
              </div>
            </div>
         </div>
