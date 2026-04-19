@@ -1,15 +1,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Hugging Face Spaces — Docker SDK
 # Architecture:
-#   supervisord manages two processes:
+#   supervisord manages three processes:
 #     - Next.js standalone server on :3000
 #     - FastAPI (uvicorn) on :8000
-#   nginx on :7860 routes:
-#     /api/* and /ws/* → FastAPI :8000
-#     everything else  → Next.js :3000
+#     - nginx on :7860 (routing frontend + backend)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Stage 1: Build Next.js (standalone output) ─────────────────────────────
+# ── Stage 1: Build Next.js ──────────────────────────────────────────────────
 FROM node:20-slim AS frontend-builder
 
 WORKDIR /build/frontend
@@ -17,16 +15,14 @@ COPY frontend/package*.json ./
 RUN npm ci
 
 COPY frontend/ ./
-# Empty API URL → all /api/* and /ws/* go through nginx to FastAPI
 ENV NEXT_PUBLIC_API_URL=""
-# Enable standalone output (required for Docker; skipped in local dev)
 ENV BUILD_STANDALONE=1
 RUN npm run build
 
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────
 FROM python:3.10-slim
 
-# System deps: ffmpeg + OpenCV libs + nginx + supervisor + Node.js runtime
+# System deps
 RUN apt-get update && apt-get install -y \
     ffmpeg libgl1 libglib2.0-0 \
     nginx supervisor curl \
@@ -36,12 +32,11 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# ── Python: CPU-only torch first (layer cache) ──────────────────────────────
+# ── Python deps ──────────────────────────────────────────────────────────────
 RUN pip install --no-cache-dir \
     torch==2.1.2 torchvision==0.16.2 \
     --index-url https://download.pytorch.org/whl/cpu
 
-# ── Python: app dependencies ────────────────────────────────────────────────
 RUN pip install --no-cache-dir \
     "fastapi>=0.110.0" \
     "uvicorn[standard]>=0.29.0" \
@@ -61,15 +56,19 @@ COPY --from=frontend-builder /build/frontend/.next/standalone ./frontend/
 COPY --from=frontend-builder /build/frontend/.next/static     ./frontend/.next/static
 COPY --from=frontend-builder /build/frontend/public           ./frontend/public
 
-# ── nginx config ────────────────────────────────────────────────────────────
+# ── Configs ──────────────────────────────────────────────────────────────────
 COPY nginx.conf /etc/nginx/nginx.conf
-
-# ── supervisord config ───────────────────────────────────────────────────────
 COPY supervisord.conf /etc/supervisor/conf.d/app.conf
 
-# ── Directories ─────────────────────────────────────────────────────────────
+# ── Directories & Permissions ────────────────────────────────────────────────
+# Ensure all runtime directories exist and are writable by any user (Hugging Face)
 RUN mkdir -p /tmp/video_seg/uploads /tmp/video_seg/outputs \
-    && mkdir -p /var/log/supervisor
+    && mkdir -p /var/log/supervisor /var/run /var/lib/nginx /var/log/nginx \
+    && chmod -R 777 /tmp/video_seg \
+    && chmod -R 777 /var/log/supervisor \
+    && chmod -R 777 /var/lib/nginx \
+    && chmod -R 777 /var/log/nginx \
+    && chmod -R 777 /var/run
 
 # HF Spaces requires port 7860
 EXPOSE 7860
