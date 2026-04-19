@@ -1,4 +1,4 @@
-@@ -1,196 +1,15 @@
+
 # SegVision — AI Video Segmentation App
 
 > Upload any video → get real-time semantic segmentation with 21-class PASCAL VOC overlay.  
