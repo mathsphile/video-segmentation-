@@ -6,48 +6,41 @@ import { useRouter, useParams } from 'next/navigation'
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 const VOC_COLORS: Record<string, string> = {
-  aeroplane: '#87CEEB', bicycle: '#FFA500', bird: '#FFD700',
-  boat: '#00BFFF', bottle: '#9400D3', bus: '#FF1493',
-  car: '#DC143C', cat: '#FF8C00', chair: '#8B4513',
-  cow: '#FFFF00', diningtable: '#D2691E', dog: '#BA55D3',
-  horse: '#FF69B4', motorbike: '#00FF7F', person: '#FF4500',
-  'potted plant': '#228B22', sheep: '#F0E68C', sofa: '#00CED1',
-  train: '#0000FF', 'tv/monitor': '#7FFFD4',
+  aeroplane:'#87CEEB', bicycle:'#FFA500', bird:'#FFD700', boat:'#00BFFF',
+  bottle:'#9400D3', bus:'#FF1493', car:'#DC143C', cat:'#FF8C00',
+  chair:'#8B4513', cow:'#D4A017', diningtable:'#D2691E', dog:'#BA55D3',
+  horse:'#FF69B4', motorbike:'#22c55e', person:'#FF4500',
+  'potted plant':'#228B22', sheep:'#B8A40A', sofa:'#00CED1',
+  train:'#3b82f6', 'tv/monitor':'#0D9488',
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  queued: 'Queued',
-  processing: 'Segmenting frames …',
-  done: 'Complete!',
-  error: 'Error',
-}
+const STEPS = ['Queued', 'Inferring Frames', 'Encoding H.264', 'Complete']
 
 export default function ProcessingPage() {
-  const router = useRouter()
-  const params = useParams()
-  const jobId = params?.id as string
+  const router  = useRouter()
+  const params  = useParams()
+  const jobId   = params?.id as string
+  const cardRef = useRef<HTMLDivElement>(null)
 
-  const [pct, setPct] = useState(0)
-  const [status, setStatus] = useState<string>('queued')
+  const [pct,      setPct]      = useState(0)
+  const [status,   setStatus]   = useState('queued')
   const [detected, setDetected] = useState<string[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [elapsed, setElapsed] = useState(0)
-  const wsRef = useRef<WebSocket | null>(null)
+  const [error,    setError]    = useState<string | null>(null)
+  const [elapsed,  setElapsed]  = useState(0)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    // Animate card in
+    setTimeout(() => cardRef.current?.classList.add('scroll-visible'), 50)
+  }, [])
+
+  useEffect(() => {
     if (!jobId) return
+    const start = Date.now()
+    timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now()-start)/1000)), 1000)
 
-    // Start elapsed timer
-    const startTime = Date.now()
-    timerRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTime) / 1000))
-    }, 1000)
-
-    // Open WebSocket
-    const wsUrl = `${API_BASE.replace('http', 'ws')}/ws/${jobId}`
+    const wsUrl = `${API_BASE.replace('https','wss').replace('http','ws')}/ws/${jobId}`
     const ws = new WebSocket(wsUrl)
-    wsRef.current = ws
 
     ws.onmessage = (evt) => {
       const data = JSON.parse(evt.data)
@@ -55,119 +48,163 @@ export default function ProcessingPage() {
       if (data.pct !== undefined) setPct(data.pct)
       if (data.detected) setDetected(data.detected)
       if (data.status === 'done') {
-        setPct(100)
-        clearInterval(timerRef.current!)
+        setPct(100); clearInterval(timerRef.current!)
         setTimeout(() => router.push(`/result/${jobId}`), 1200)
       }
-      if (data.status === 'error') {
-        setError(data.error ?? 'Segmentation failed.')
-        clearInterval(timerRef.current!)
-      }
+      if (data.status === 'error') { setError(data.error ?? 'Failed'); clearInterval(timerRef.current!) }
     }
-
-    ws.onerror = () => {
-      // Fallback: poll via HTTP if WS fails
-      pollStatus()
-    }
-
-    return () => {
-      ws.close()
-      clearInterval(timerRef.current!)
-    }
+    ws.onerror = () => pollFallback()
+    return () => { ws.close(); clearInterval(timerRef.current!) }
   }, [jobId])
 
-  const pollStatus = async () => {
-    const interval = setInterval(async () => {
+  const pollFallback = () => {
+    const iv = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/status/${jobId}`)
-        const data = await res.json()
-        setStatus(data.status)
-        if (data.pct !== undefined) setPct(data.pct)
-        if (data.detected) setDetected(data.detected)
-        if (data.status === 'done') {
-          clearInterval(interval)
-          clearInterval(timerRef.current!)
+        const d = await fetch(`${API_BASE}/api/status/${jobId}`).then(r=>r.json())
+        setStatus(d.status)
+        if (d.pct !== undefined) setPct(d.pct)
+        if (d.detected) setDetected(d.detected)
+        if (d.status === 'done') {
+          clearInterval(iv); clearInterval(timerRef.current!)
           setTimeout(() => router.push(`/result/${jobId}`), 1200)
         }
-        if (data.status === 'error') {
-          setError(data.error)
-          clearInterval(interval)
-        }
-      } catch (e) {
-        // ignore transient errors
-      }
-    }, 1000)
+        if (d.status === 'error') { setError(d.error); clearInterval(iv) }
+      } catch {}
+    }, 1200)
   }
 
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  const fmtTime = (s: number) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`
+  const currentStep = status==='queued' ? 0 : status==='processing' ? 1 : status==='done' ? 3 : 2
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-20">
-      <div className="glass rounded-2xl p-10 shadow-2xl animate-fade-in">
-
-        {/* Status header */}
-        <div className="text-center mb-10">
+    <div className="max-w-xl mx-auto px-5 py-20">
+      <div
+        ref={cardRef}
+        className="scroll-hidden card p-8 border border-slate-200 shadow-sm"
+        style={{ borderRadius: '20px' }}
+      >
+        {/* Head */}
+        <div className="text-center mb-8">
+          {/* Icon */}
           <div className={`w-20 h-20 rounded-2xl mx-auto mb-5 flex items-center justify-center
-            ${status === 'done' ? 'bg-green-500/15' : status === 'error' ? 'bg-red-500/15' : 'bg-brand-500/15'}`}>
-            {status === 'done' ? (
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            ) : status === 'error' ? (
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            ${status==='done'  ? 'bg-green-50 border border-green-200'
+            : status==='error' ? 'bg-red-50 border border-red-200'
+            : 'bg-orange-50 border border-orange-200'}`}>
+            {status==='done' ? (
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            ) : status==='error' ? (
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
               </svg>
             ) : (
-              <svg className="animate-spin" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              <svg className="animate-spin" width="30" height="30" viewBox="0 0 24 24" fill="none" strokeWidth="2">
+                <defs>
+                  <linearGradient id="spin-g" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f97316"/>
+                    <stop offset="100%" stopColor="#fbbf24"/>
+                  </linearGradient>
+                </defs>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#spin-g)"/>
               </svg>
             )}
           </div>
 
-          <h1 className="text-2xl font-bold text-white mb-1">
-            {STATUS_LABELS[status] ?? status}
+          <h1 className="text-xl font-bold text-slate-900 mb-1">
+            {status==='queued'     ? 'In Queue'
+           : status==='processing' ? 'Segmenting…'
+           : status==='done'       ? 'Complete!'
+           : status==='error'      ? 'Failed' : status}
           </h1>
-          <p className="text-gray-400 text-sm">
-            Job ID: <code className="text-brand-400 font-mono">{jobId?.slice(0, 8)}…</code>
-            {status === 'processing' && (
-              <span className="ml-3 text-gray-500">⏱ {formatTime(elapsed)}</span>
-            )}
+          <p className="text-sm text-slate-400">
+            Job <code className="text-orange-500 font-mono text-xs">{jobId?.slice(0,8)}…</code>
+            {status==='processing' && <span className="ml-2 text-slate-400">· {fmtTime(elapsed)}</span>}
           </p>
         </div>
 
-        {/* Progress Bar */}
+        {/* Progress */}
         {status !== 'error' && (
-          <div className="mb-8">
-            <div className="flex justify-between text-sm font-medium mb-2.5">
-              <span className="text-gray-300">Progress</span>
-              <span className={`${pct >= 100 ? 'text-green-400' : 'text-brand-400'}`}>{pct.toFixed(1)}%</span>
+          <div className="mb-7">
+            <div className="flex justify-between text-xs font-medium text-slate-500 mb-2">
+              <span>Progress</span>
+              <span className={pct>=100 ? 'text-green-600' : 'text-orange-500'}>{pct.toFixed(1)}%</span>
             </div>
-            <div className="progress-track h-3">
-              <div className="progress-fill h-full" style={{ width: `${pct}%` }} />
+            <div className="progress-track h-2">
+              <div className="progress-fill h-full" style={{ width:`${pct}%` }} />
+            </div>
+          </div>
+        )}
+
+        {/* Steps */}
+        {status !== 'error' && (
+          <div className="mb-7">
+            <div className="flex items-center gap-0">
+              {STEPS.map((s, i) => (
+                <div key={i} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className={`step-dot ${i < currentStep ? 'done' : i === currentStep ? 'active' : 'pending'}`}>
+                      {i < currentStep
+                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                        : i+1}
+                    </div>
+                    <p className={`text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap
+                      ${i===currentStep ? 'text-orange-500' : i<currentStep ? 'text-green-600' : 'text-slate-300'}`}>
+                      {s}
+                    </p>
+                  </div>
+                  {i < STEPS.length-1 && (
+                    <div className={`h-px flex-1 mx-1 mb-4 ${i < currentStep ? 'bg-green-300' : 'bg-slate-200'}`} />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
 
         {/* Error */}
         {error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm mb-6">
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm mb-6">
             <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {/* Stats */}
+        {status === 'processing' && (
+          <div className="grid grid-cols-3 gap-3 mb-7">
+            {[
+              { label:'Progress', val:`${pct.toFixed(0)}%`, color:'text-orange-500' },
+              { label:'Objects',  val:`${detected.length}`, color:'text-slate-800'  },
+              { label:'Elapsed',  val:fmtTime(elapsed),     color:'text-slate-800'  },
+            ].map(s => (
+              <div key={s.label} className="text-center p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                <p className={`text-lg font-bold ${s.color}`} style={{fontVariantNumeric:'tabular-nums'}}>{s.val}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Queue dots */}
+        {status === 'queued' && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-orange-50 border border-orange-100 mb-6">
+            <div className="flex gap-1.5">
+              <span className="bounce-dot bg-orange-400" />
+              <span className="bounce-dot bg-amber-400"  />
+              <span className="bounce-dot bg-yellow-400" />
+            </div>
+            <p className="text-sm text-orange-700">Waiting for a worker to pick up this job…</p>
           </div>
         )}
 
         {/* Detected classes */}
         {detected.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Detected Objects ({detected.length})
+          <div className="pt-4 border-t border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+              Detected Objects · {detected.length}
             </p>
-            <div className="flex flex-wrap gap-2">
-              {detected.map((cls) => (
+            <div className="flex flex-wrap gap-1.5">
+              {detected.map(cls => (
                 <span key={cls} className="class-pill">
-                  <span
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: VOC_COLORS[cls] ?? '#888' }}
-                  />
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: VOC_COLORS[cls]??'#888' }} />
                   {cls}
                 </span>
               ))}
@@ -175,44 +212,9 @@ export default function ProcessingPage() {
           </div>
         )}
 
-        {/* Queue state placeholder */}
-        {status === 'queued' && (
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="w-2.5 h-2.5 bg-brand-400 rounded-full animate-bounce"
-                  style={{ animationDelay: `${i * 0.15}s` }}
-                />
-              ))}
-            </div>
-            <p className="text-gray-400 text-sm">Waiting for a worker to pick up this job …</p>
-          </div>
-        )}
-
-        {/* Shimmer stats while processing */}
-        {status === 'processing' && (
-          <div className="mt-6 grid grid-cols-3 gap-3">
-            {['Frames Processed', 'Objects Found', 'Time Elapsed'].map((label, i) => (
-              <div key={label} className="stat-card text-center">
-                <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <p className="font-bold text-white">
-                  {i === 0 ? `${pct.toFixed(0)}%` : i === 1 ? detected.length : formatTime(elapsed)}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Back button */}
-        <a
-          href="/"
-          className="mt-8 flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
+        {/* Back link */}
+        <a href="/" className="mt-8 flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
           Back to upload
         </a>
       </div>

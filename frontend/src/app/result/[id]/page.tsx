@@ -6,259 +6,268 @@ import { useParams } from 'next/navigation'
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 const VOC_COLORS: Record<string, string> = {
-  aeroplane: '#87CEEB', bicycle: '#FFA500', bird: '#FFD700',
-  boat: '#00BFFF', bottle: '#9400D3', bus: '#FF1493',
-  car: '#DC143C', cat: '#FF8C00', chair: '#8B4513',
-  cow: '#FFFF00', diningtable: '#D2691E', dog: '#BA55D3',
-  horse: '#FF69B4', motorbike: '#00FF7F', person: '#FF4500',
-  'potted plant': '#228B22', sheep: '#F0E68C', sofa: '#00CED1',
-  train: '#0000FF', 'tv/monitor': '#7FFFD4',
+  aeroplane:'#87CEEB', bicycle:'#FFA500', bird:'#FFD700', boat:'#00BFFF',
+  bottle:'#9400D3', bus:'#FF1493', car:'#DC143C', cat:'#FF8C00',
+  chair:'#8B4513', cow:'#D4A017', diningtable:'#D2691E', dog:'#BA55D3',
+  horse:'#FF69B4', motorbike:'#22c55e', person:'#FF4500',
+  'potted plant':'#228B22', sheep:'#B8A40A', sofa:'#00CED1',
+  train:'#3b82f6', 'tv/monitor':'#0D9488',
+}
+
+function useScrollReveal(status: string) {
+  useEffect(() => {
+    if (status !== 'ready') return
+    // Small delay to ensure the DOM has fully updated
+    const timer = setTimeout(() => {
+      const targets = document.querySelectorAll('.scroll-hidden, .scroll-left, .scroll-right, .scroll-scale')
+      const obs = new IntersectionObserver(
+        entries => entries.forEach(e => {
+          if (e.isIntersecting) {
+            e.target.classList.add('scroll-visible')
+            obs.unobserve(e.target)
+          }
+        }),
+        { threshold: 0.05 }
+      )
+      targets.forEach(t => obs.observe(t))
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [status])
 }
 
 export default function ResultPage() {
-  const params = useParams()
-  const jobId = params?.id as string
+  const params   = useParams()
+  const jobId    = params?.id as string
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [detected, setDetected] = useState<string[]>([])
-  const [isPlaying, setIsPlaying] = useState(false)
+
+  // 'loading' → 'ready' or 'error'
+  const [status,      setStatus]      = useState<'loading'|'ready'|'error'>('loading')
+  const [detected,    setDetected]    = useState<string[]>([])
+  const [videoReady,  setVideoReady]  = useState(false)   // video URL responded 200
+  const [isPlaying,   setIsPlaying]   = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [volume, setVolume] = useState(1)
+  const [duration,    setDuration]    = useState(0)
+  const [volume,      setVolume]      = useState(1)
+  const [copied,      setCopied]      = useState(false)
+  const [retries,     setRetries]     = useState(0)
 
   const videoUrl = `${API_BASE}/api/video/${jobId}`
-  const downloadUrl = videoUrl
+
+  useScrollReveal(status)
 
   useEffect(() => {
     if (!jobId) return
-    fetch(`${API_BASE}/api/status/${jobId}`)
-      .then(r => r.json())
-      .then(data => {
+
+    const fetchStatus = async () => {
+      try {
+        const res  = await fetch(`${API_BASE}/api/status/${jobId}`)
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+
         if (data.status === 'done') {
-          setDetected(data.detected || [])
+          setDetected(data.detected ?? [])
           setStatus('ready')
-        } else if (data.status === 'error') {
+          return
+        }
+        await probeVideo()
+      } catch {
+        await probeVideo()
+      }
+    }
+
+    const probeVideo = async () => {
+      try {
+        // Explicitly use HEAD; backend now supports this
+        const res = await fetch(videoUrl, { method: 'HEAD' })
+        if (res.ok) {
+          setStatus('ready')
+        } else if (retries < 6) {
+          setTimeout(() => setRetries(r => r + 1), 1500)
+        } else {
           setStatus('error')
         }
-      })
-      .catch(() => setStatus('error'))
-  }, [jobId])
+      } catch {
+        setStatus('error')
+      }
+    }
+
+    fetchStatus()
+  }, [jobId, retries, videoUrl])
 
   const togglePlay = () => {
-    const v = videoRef.current
-    if (!v) return
+    const v = videoRef.current; if (!v) return
     if (v.paused) { v.play(); setIsPlaying(true) }
-    else { v.pause(); setIsPlaying(false) }
+    else          { v.pause(); setIsPlaying(false) }
   }
 
-  const onTimeUpdate = () => {
-    if (videoRef.current) setCurrentTime(videoRef.current.currentTime)
+  const fmtTime = (s: number) =>
+    `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(window.location.href)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
-  const onLoadedMetadata = () => {
-    if (videoRef.current) setDuration(videoRef.current.duration)
-  }
-
-  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const t = parseFloat(e.target.value)
-    if (videoRef.current) { videoRef.current.currentTime = t; setCurrentTime(t) }
-  }
-
-  const changeVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = parseFloat(e.target.value)
-    if (videoRef.current) videoRef.current.volume = v
-    setVolume(v)
-  }
-
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60)
-    const sec = Math.floor(s % 60)
-    return `${m}:${String(sec).padStart(2, '0')}`
-  }
-
-  if (status === 'loading') {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-20 text-center animate-fade-in">
-        <div className="glass rounded-2xl p-16 shadow-2xl">
-          <div className="w-16 h-16 rounded-2xl bg-brand-500/15 flex items-center justify-center mx-auto mb-5">
-            <svg className="animate-spin" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-            </svg>
-          </div>
-          <p className="text-gray-300 text-lg">Loading your result …</p>
-        </div>
+  if (status === 'loading') return (
+    <div className="max-w-4xl mx-auto px-5 py-32 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center mx-auto mb-5">
+        <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="2">
+          <defs>
+            <linearGradient id="sg-spin" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f97316"/>
+              <stop offset="100%" stopColor="#fbbf24"/>
+            </linearGradient>
+          </defs>
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#sg-spin)"/>
+        </svg>
       </div>
-    )
-  }
+      <p className="text-sm font-medium text-slate-600">Loading your result…</p>
+      {retries > 0 && (
+        <p className="text-xs text-slate-400 mt-2">Connecting… (Attempt {retries})</p>
+      )}
+    </div>
+  )
 
-  if (status === 'error') {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-20 text-center animate-fade-in">
-        <div className="glass rounded-2xl p-16 shadow-2xl">
-          <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mx-auto mb-5">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-            </svg>
+  if (status === 'error') return (
+    <div className="max-w-4xl mx-auto px-5 py-32 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-5">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x1="15" y2="15"/>
+        </svg>
+      </div>
+      <p className="font-semibold text-slate-800 mb-1">Result not available</p>
+      <p className="text-sm text-slate-500 mb-6">The job might still be processing or the file has expired.</p>
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={() => { setStatus('loading'); setRetries(0) }} className="btn-outline px-5 py-2.5 text-sm">Retry</button>
+        <a href="/" className="btn-primary px-5 py-2.5 text-sm">New Upload</a>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="bg-white max-w-5xl mx-auto px-5 py-12">
+      {/* Header — No animation for immediate layout stability */}
+      <div className="flex items-start justify-between mb-10 flex-wrap gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Segmentation Finished</span>
           </div>
-          <p className="text-gray-300 text-lg mb-2">Result not available</p>
-          <p className="text-gray-500 text-sm mb-6">The job may have failed or the result has expired.</p>
-          <a href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium text-sm transition-colors">
-            Try again
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Your AI Result</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Job ID: <code className="text-orange-500 font-mono">{jobId?.slice(0, 12)}</code>
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={copyLink} className="btn-outline px-4 py-2.5 text-sm flex items-center gap-2">
+            {copied ? 'Link Copied!' : 'Copy Result Link'}
+          </button>
+          <a href={videoUrl} download className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
+            Download MP4
           </a>
         </div>
       </div>
-    )
-  }
 
-  return (
-    <div className="max-w-5xl mx-auto px-4 py-12 animate-fade-in">
-
-      {/* Success Banner */}
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-green-400"></span>
-            <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">Segmentation Complete</span>
-          </div>
-          <h1 className="text-3xl font-bold text-white">Your Segmented Video</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            Job: <code className="font-mono text-brand-400">{jobId?.slice(0, 8)}…</code>
-            {detected.length > 0 && ` · ${detected.length} object class${detected.length > 1 ? 'es' : ''} detected`}
-          </p>
-        </div>
-        <a
-          href={downloadUrl}
-          download={`segmented_${jobId?.slice(0, 8)}.mp4`}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl
-            bg-gradient-to-r from-brand-600 to-purple-600
-            hover:from-brand-500 hover:to-purple-500
-            text-white font-semibold text-sm transition-all
-            hover:shadow-lg hover:shadow-brand-500/25 hover:-translate-y-0.5"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Download MP4
-        </a>
-      </div>
-
-      {/* Video Player */}
-      <div className="glass rounded-2xl overflow-hidden shadow-2xl mb-6">
-        {/* Labels */}
-        <div className="flex text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 pt-4 pb-2 border-b border-white/5">
-          <span className="w-1/2 text-center">Original</span>
-          <span className="w-1/2 text-center text-brand-400">Segmented Overlay</span>
+      {/* Video Player Card */}
+      <div className="card border border-slate-200 overflow-hidden mb-8 scroll-scale">
+        <div className="flex border-b border-slate-100 bg-slate-50/50">
+          <div className="flex-1 py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest border-r border-slate-100">Original</div>
+          <div className="flex-1 py-3 text-center text-[10px] font-bold text-orange-500 uppercase tracking-widest">Segmented Overlay</div>
         </div>
 
-        {/* Video */}
-        <div className="bg-black relative">
+        <div className="bg-black relative aspect-video">
           <video
             ref={videoRef}
             src={videoUrl}
-            className="w-full max-h-[480px] object-contain"
-            onTimeUpdate={onTimeUpdate}
-            onLoadedMetadata={onLoadedMetadata}
+            className="w-full h-full"
+            playsInline
+            preload="auto"
+            onTimeUpdate={() => videoRef.current && setCurrentTime(videoRef.current.currentTime)}
+            onLoadedMetadata={() => {
+              if (videoRef.current) {
+                setDuration(videoRef.current.duration)
+                setVideoReady(true)
+              }
+            }}
             onEnded={() => setIsPlaying(false)}
+            onError={() => setTimeout(() => setRetries(r => r + 1), 2000)}
           />
+          {!videoReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+              <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
         </div>
 
-        {/* Custom Controls */}
-        <div className="px-5 py-4 bg-surface-card/60 backdrop-blur-sm space-y-3">
-          {/* Seek bar */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400 font-mono w-10">{formatTime(currentTime)}</span>
-            <input
-              type="range" min={0} max={duration || 1} step={0.1} value={currentTime}
-              onChange={seek}
-              className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-brand-500"
-            />
-            <span className="text-xs text-gray-400 font-mono w-10 text-right">{formatTime(duration)}</span>
-          </div>
-
-          {/* Buttons row */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={togglePlay}
-              className="w-10 h-10 rounded-xl bg-brand-500/15 hover:bg-brand-500/25 flex items-center justify-center transition-colors"
-            >
-              {isPlaying ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="#6366f1">
-                  <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="#6366f1">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
-                </svg>
-              )}
-            </button>
-
-            {/* Volume */}
-            <div className="flex items-center gap-2 flex-1">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                {volume > 0 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>}
-                {volume > 0.5 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>}
-              </svg>
+        <div className="px-6 py-5 bg-slate-50 border-t border-slate-100">
+          <div className="flex items-center gap-4 mb-4">
+            <span className="text-xs text-slate-400 font-mono w-10">{fmtTime(currentTime)}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-slate-200 relative group cursor-pointer">
+              <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${(currentTime/duration)*100}%` }} />
               <input
-                type="range" min={0} max={1} step={0.05} value={volume}
-                onChange={changeVolume}
-                className="w-20 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-brand-500"
+                type="range" min={0} max={duration || 1} step={0.1} value={currentTime}
+                onChange={e => {
+                  const t = +e.target.value
+                  if (videoRef.current) { videoRef.current.currentTime = t; setCurrentTime(t) }
+                }}
+                className="absolute inset-0 w-full opacity-0 cursor-pointer"
               />
             </div>
+            <span className="text-xs text-slate-400 font-mono w-10 text-right">{fmtTime(duration)}</span>
+          </div>
 
-            <span className="text-xs text-gray-500">
-              Side-by-side: Original | Segmented
-            </span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button onClick={togglePlay} className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center hover:bg-slate-800 transition-all active:scale-95 shadow-lg">
+                {isPlaying ? <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> : <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+              </button>
+              <div className="flex items-center gap-2 group">
+                <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                </div>
+                <input
+                  type="range" min={0} max={1} step={0.05} value={volume}
+                  onChange={e => {
+                    const v = +e.target.value
+                    if (videoRef.current) videoRef.current.volume = v
+                    setVolume(v)
+                  }}
+                  className="w-24 h-1.5"
+                />
+              </div>
+            </div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">H.264 High Profile · 30 FPS</div>
           </div>
         </div>
       </div>
 
-      {/* Detected Objects */}
-      {detected.length > 0 && (
-        <div className="glass rounded-2xl p-6 mb-6 shadow-xl">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
-            🎯 Detected Object Classes ({detected.length})
-          </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 card p-8 scroll-hidden">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">AI Detections</h3>
+            <span className="badge">{detected.length} Objects</span>
+          </div>
           <div className="flex flex-wrap gap-2">
-            {detected.map((cls) => (
-              <span key={cls} className="class-pill text-sm px-3 py-1">
-                <span
-                  className="w-3.5 h-3.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: VOC_COLORS[cls] ?? '#888' }}
-                />
+            {detected.length > 0 ? detected.map(cls => (
+              <span key={cls} className="class-pill">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: VOC_COLORS[cls] ?? '#888' }} />
                 {cls}
               </span>
-            ))}
+            )) : <span className="text-sm text-slate-400">Processing detailed labels...</span>}
           </div>
         </div>
-      )}
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-3">
-        <a
-          href="/"
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 text-gray-300 hover:text-white font-medium text-sm transition-all"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-          Segment Another Video
-        </a>
-        <a
-          href={downloadUrl}
-          download
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-brand-500/30 hover:border-brand-500/60 hover:bg-brand-500/5 text-brand-400 font-medium text-sm transition-all"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Download Result
-        </a>
+        <div className="card p-8 bg-slate-900 border-slate-800 text-white scroll-hidden">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
+          <div className="space-y-3">
+            <a href="/" className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-medium transition-all">New Segmentation</a>
+            <a href={videoUrl} download className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-sm font-bold transition-all shadow-lg shadow-orange-500/20">Save Result</a>
+          </div>
+        </div>
       </div>
     </div>
   )

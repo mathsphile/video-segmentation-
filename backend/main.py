@@ -75,7 +75,10 @@ class ConnectionManager:
 
     def disconnect(self, job_id: str, ws: WebSocket):
         if job_id in self.active:
-            self.active[job_id].discard(ws)
+            try:
+                self.active[job_id].remove(ws)
+            except ValueError:
+                pass
 
     async def broadcast(self, job_id: str, data: dict):
         for ws in list(self.active.get(job_id, [])):
@@ -185,6 +188,7 @@ async def get_status(job_id: str):
     return {"job_id": job_id, "status": state.lower()}
 
 
+@app.head("/api/video/{job_id}")
 @app.get("/api/video/{job_id}")
 async def get_video(job_id: str):
     """Stream the processed video file."""

@@ -2,61 +2,74 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'SegVision — AI Video Segmentation',
-  description:
-    'Upload any video and get real-time semantic segmentation with 21-class PASCAL VOC overlay. Powered by DeepLabV3 + ResNet-50.',
-  keywords: ['video segmentation', 'AI', 'semantic segmentation', 'DeepLabV3', 'computer vision'],
-  openGraph: {
-    title: 'SegVision — AI Video Segmentation',
-    description: 'Semantic segmentation overlay for any video, in seconds.',
-    type: 'website',
-  },
+  description: 'Upload any video and get real-time semantic segmentation. Powered by DeepLabV3 + ResNet-50.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-      </head>
-      <body className="bg-surface text-white antialiased min-h-screen">
-        {/* Ambient background glow */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-600/20 rounded-full blur-3xl animate-pulse-slow" />
-          <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1.5s' }} />
-        </div>
+    <html lang="en">
+      <body className={`${inter.className} bg-white text-slate-900 antialiased min-h-screen`}>
+
+        {/* Subtle dot grid */}
+        <div className="page-bg" aria-hidden="true" />
 
         {/* Navbar */}
-        <nav className="relative z-10 border-b border-surface-border bg-surface/80 backdrop-blur-xl">
-          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-            <a href="/" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+        <nav className="navbar fixed top-0 left-0 right-0 z-50">
+          <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
+
+            {/* Logo */}
+            <a href="/" className="flex items-center gap-2.5 group">
+              <div className="w-8 h-8 rounded-xl bg-slate-900 flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
                   <polygon points="5 3 19 12 5 21 5 3"/>
                 </svg>
               </div>
-              <span className="text-lg font-bold tracking-tight">
-                Seg<span className="text-brand-400">Vision</span>
+              <span className="text-base font-bold tracking-tight text-slate-900">
+                Seg<span className="text-gradient">Vision</span>
               </span>
             </a>
-            <div className="flex items-center gap-4 text-sm text-gray-400">
-              <span className="hidden sm:flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                DeepLabV3 · ResNet-50 · PASCAL VOC 21
-              </span>
+
+            {/* Right */}
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                Model Live
+              </div>
+              <a
+                href="https://github.com/mathsphile/video-segmentation-"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-all"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+              </a>
             </div>
           </div>
         </nav>
 
-        <main className="relative z-10">
+        <main className="relative z-10 pt-16">
           {children}
         </main>
 
-        <footer className="relative z-10 border-t border-surface-border mt-20 py-8 text-center text-sm text-gray-500">
-          <p>SegVision · Semantic Video Segmentation · DeepLabV3 + ResNet-50</p>
+        <footer className="relative z-10 border-t border-slate-100 py-10 mt-20">
+          <div className="max-w-6xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-slate-900 flex items-center justify-center">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </div>
+              <span className="text-sm font-semibold text-slate-800">SegVision</span>
+            </div>
+            <p className="text-xs text-slate-400">DeepLabV3 + ResNet-50 · PASCAL VOC 21 Classes · H.264 Output</p>
+            <a href="https://github.com/mathsphile/video-segmentation-" target="_blank" className="text-xs text-slate-400 hover:text-slate-700 transition-colors">
+              GitHub ↗
+            </a>
+          </div>
         </footer>
       </body>
     </html>
