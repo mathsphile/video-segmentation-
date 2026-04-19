@@ -109,7 +109,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: form })
       if (!res.ok) { const d = await res.json(); throw new Error(d.detail ?? 'Upload failed') }
       const data = await res.json()
-      router.push(`/processing/${data.job_id}`)
+      router.push(`/processing?id=${data.job_id}`)
     } catch (e: any) {
       setError(e.message ?? 'Upload failed. Is the backend running?')
       setUploading(false)

@@ -5,19 +5,14 @@ const nextConfig = {
   },
 
   // Docker/HF Spaces: static export served by FastAPI directly on :7860
-  ...(process.env.BUILD_EXPORT === '1' ? {
-    output: 'export',
-    eslint: { ignoreDuringBuilds: true },
-    typescript: { ignoreBuildErrors: true },
-    images: { unoptimized: true },
-  } : {}),
+  output: 'export',
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
+  images: { unoptimized: true },
 
-  // Standalone build (not currently used but kept for reference)
-  ...(process.env.BUILD_STANDALONE === '1' ? {
-    output: 'standalone',
-    eslint: { ignoreDuringBuilds: true },
-    typescript: { ignoreBuildErrors: true },
-  } : {}),
+  // Ensure trailing slashes are consistent for static routing
+  // and Next.js generates processing/index.html instead of processing.html
+  trailingSlash: true,
 }
 
 module.exports = nextConfig

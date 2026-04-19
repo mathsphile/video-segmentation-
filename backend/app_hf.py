@@ -197,27 +197,31 @@ if STATIC_DIR.exists():
     async def serve_spa(full_path: str):
         """
         SPA catch-all: try to serve the exact static file, then .html,
-        then fall back to index.html so client-side routing works.
+        then index.html in the folder (trailingSlash support).
         """
-        # Exact file match (images, etc.)
+        # Handle root specially
+        if not full_path or full_path == "/":
+            index = STATIC_DIR / "index.html"
+            if index.is_file(): return FileResponse(str(index))
+            return JSONResponse({"error": "frontend index.html not found"}, status_code=404)
+
+        # 1. Exact file match (images, JS, CSS)
         candidate = STATIC_DIR / full_path
         if candidate.is_file():
             return FileResponse(str(candidate))
 
-        # Next.js static export adds .html per route
+        # 2. Next.js route: try path.html (e.g., /upload -> upload.html)
         html_candidate = STATIC_DIR / f"{full_path}.html"
         if html_candidate.is_file():
             return FileResponse(str(html_candidate))
 
-        # For dynamic segments like /processing/[id], Next.js generates
-        # processing/[id].html — look for that pattern
-        parts = full_path.split("/")
-        if len(parts) == 2:
-            segment_html = STATIC_DIR / parts[0] / "[id].html"
-            if segment_html.is_file():
-                return FileResponse(str(segment_html))
+        # 3. Next.js route with trailingSlash: path/index.html
+        # (e.g., /processing/ -> processing/index.html)
+        index_candidate = STATIC_DIR / full_path / "index.html"
+        if index_candidate.is_file():
+            return FileResponse(str(index_candidate))
 
-        # Final fallback: root index.html (SPA entry)
+        # Final fallback: root index.html (client-side routing)
         index = STATIC_DIR / "index.html"
         if index.is_file():
             return FileResponse(str(index))

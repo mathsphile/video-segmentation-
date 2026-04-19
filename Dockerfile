@@ -12,14 +12,13 @@ FROM node:20-slim AS frontend-builder
 
 WORKDIR /build/frontend
 COPY frontend/package*.json ./
-RUN npm ci
+# use npm install (more resilient) instead of ci for this setup
+RUN npm install
 
 COPY frontend/ ./
-# Empty API URL → NEXT_PUBLIC_API_URL="" means relative /api/* calls
-# which FastAPI will handle directly (same-origin)
+# We forced output:export in next.config.js, but keeping these for clarity
 ENV NEXT_PUBLIC_API_URL=""
-# Trigger output: 'export' mode in next.config.js
-ENV BUILD_EXPORT=1
+ENV NODE_ENV=production
 RUN npm run build
 
 # ── Stage 2: Runtime (Python only, no nginx, no Node) ───────────────────────
