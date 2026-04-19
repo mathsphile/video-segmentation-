@@ -1,11 +1,11 @@
 ---
 title: SegVision
 emoji: 🎬
-colorFrom: orange
-colorTo: yellow
+colorFrom: yellow
+colorTo: red
 sdk: docker
 pinned: false
-short_description: AI Video Segmentation — DeepLabV3 + ResNet-50 side-by-side comparison
+short_description: AI Video Segmentation with DeepLabV3 & ResNet-50
 ---
 
 # SegVision — AI Video Segmentation

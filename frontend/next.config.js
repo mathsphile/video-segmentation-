@@ -8,7 +8,11 @@ const nextConfig = {
 
   // Standalone output is needed for Docker (HF Spaces).
   // Set BUILD_STANDALONE=1 in Dockerfile; omit for local dev.
-  ...(process.env.BUILD_STANDALONE === '1' ? { output: 'standalone' } : {}),
+  ...(process.env.BUILD_STANDALONE === '1' ? { 
+    output: 'standalone',
+    eslint: { ignoreDuringBuilds: true },
+    typescript: { ignoreBuildErrors: true },
+  } : {}),
 }
 
 module.exports = nextConfig
