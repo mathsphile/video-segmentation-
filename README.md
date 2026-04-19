@@ -5,11 +5,11 @@ colorFrom: yellow
 colorTo: red
 sdk: docker
 pinned: false
-short_description: AI Video Segmentation with DeepLabV3 & ResNet-50
+short_description: Video Segmentation with the SegVision Neural Engine
 ---
 
-# SegVision — AI Video Segmentation
+# SegVision — Video Segmentation
 
-Upload any video and watch AI identify every object in real-time, outputting a stunning side-by-side comparison with coloured overlays.
+Upload any video and watch our engine identify every object in real-time, outputting a stunning side-by-side comparison with coloured overlays.
 
-**Powered by:** DeepLabV3 + ResNet-50 · PASCAL VOC 21 Classes · FastAPI · Next.js
+**Powered by:** SegVision Neural Engine · Neural Core v1.0 · FastAPI · Next.js
