@@ -60,11 +60,15 @@ COPY --from=frontend-builder /build/frontend/public           ./frontend/public
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY supervisord.conf /etc/supervisor/conf.d/app.conf
 
-# ── Directories & Permissions ────────────────────────────────────────────────
-# Ensure all runtime directories exist and are writable by any user (Hugging Face)
+# ── Directories, Permissions & Cleanup ───────────────────────────────────────
+# Remove default nginx config to prevent conflicts
+RUN rm -f /etc/nginx/sites-enabled/default
+
+# Ensure all runtime directories exist and are writable by any user
 RUN mkdir -p /tmp/video_seg/uploads /tmp/video_seg/outputs \
+    && mkdir -p /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp \
     && mkdir -p /var/log/supervisor /var/run /var/lib/nginx /var/log/nginx \
-    && chmod -R 777 /tmp/video_seg \
+    && chmod -R 777 /tmp \
     && chmod -R 777 /var/log/supervisor \
     && chmod -R 777 /var/lib/nginx \
     && chmod -R 777 /var/log/nginx \
