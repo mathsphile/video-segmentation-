@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/video_seg/uploads"))
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/tmp/video_seg/outputs"))
+# In Docker: /app/backend/../frontend/out = /app/frontend/out
 STATIC_DIR = Path(__file__).parent.parent / "frontend" / "out"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

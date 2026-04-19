@@ -1,14 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Local dev: talks directly to FastAPI on :8000
-  // Docker/HF build: NEXT_PUBLIC_API_URL="" — nginx routes /api/* to FastAPI
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000',
   },
 
-  // Standalone output is needed for Docker (HF Spaces).
-  // Set BUILD_STANDALONE=1 in Dockerfile; omit for local dev.
-  ...(process.env.BUILD_STANDALONE === '1' ? { 
+  // Docker/HF Spaces: static export served by FastAPI directly on :7860
+  ...(process.env.BUILD_EXPORT === '1' ? {
+    output: 'export',
+    eslint: { ignoreDuringBuilds: true },
+    typescript: { ignoreBuildErrors: true },
+    images: { unoptimized: true },
+  } : {}),
+
+  // Standalone build (not currently used but kept for reference)
+  ...(process.env.BUILD_STANDALONE === '1' ? {
     output: 'standalone',
     eslint: { ignoreDuringBuilds: true },
     typescript: { ignoreBuildErrors: true },
