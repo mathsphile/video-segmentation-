@@ -3,7 +3,13 @@
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+// Determine API_BASE: if the baked-in env var is defined, use it.
+const getApiBase = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') return ''; // Production same-origin
+  return 'http://localhost:8000'; // SSR fallback
+};
+const API_BASE = getApiBase();
 
 function ResultContent() {
   const router       = useRouter()
@@ -24,13 +30,14 @@ function ResultContent() {
     const checkStatus = async () => {
       try {
         // 1. Check API status
-        const res = await fetch(`${API_BASE}/api/status/${jobId}`)
+        const statusEndpoint = API_BASE ? `${API_BASE}/api/status/${jobId}` : `api/status/${jobId}`
+        const res = await fetch(statusEndpoint)
         if (!res.ok) throw new Error('Not found')
         const data = await res.json()
 
         if (data.status === 'done') {
           setDetected(data.detected || [])
-          const url = `${API_BASE}/api/video/${jobId}`
+          const url = API_BASE ? `${API_BASE}/api/video/${jobId}` : `api/video/${jobId}`
           
           // 2. Verify file exists with HEAD request
           const head = await fetch(url, { method: 'HEAD' })

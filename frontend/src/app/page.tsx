@@ -3,7 +3,14 @@
 import { useState, useRef, useCallback, useEffect, DragEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+// Determine API_BASE: if the baked-in env var is defined, use it.
+// Otherwise, in the browser, default to empty string (same-origin).
+const getApiBase = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') return ''; // Production same-origin
+  return 'http://localhost:8000'; // SSR fallback
+};
+const API_BASE = getApiBase();
 
 const VOC_CLASSES = [
   { name: 'aeroplane', color: '#87CEEB' }, { name: 'bicycle', color: '#FFA500' },
@@ -106,7 +113,8 @@ export default function HomePage() {
     setUploading(true); setError(null)
     try {
       const form = new FormData(); form.append('file', file)
-      const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: form })
+      const endpoint = API_BASE ? `${API_BASE}/api/upload` : 'api/upload'
+      const res = await fetch(endpoint, { method: 'POST', body: form })
       if (!res.ok) { const d = await res.json(); throw new Error(d.detail ?? 'Upload failed') }
       const data = await res.json()
       router.push(`/processing?id=${data.job_id}`)

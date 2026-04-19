@@ -99,6 +99,7 @@ def _run_inference(job_id: str, input_path: str, output_path: str):
 
 @app.post("/api/upload")
 async def upload_video(file: UploadFile = File(...)):
+    logger.info(f"Incoming upload request: filename='{file.filename}', content_type='{file.content_type}'")
     ext = Path(file.filename or "x.mp4").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(400, f"Unsupported format '{ext}'.")

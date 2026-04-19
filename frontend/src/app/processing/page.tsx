@@ -3,7 +3,13 @@
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+// Determine API_BASE: if the baked-in env var is defined, use it.
+const getApiBase = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') return ''; // Production same-origin
+  return 'http://localhost:8000'; // SSR fallback
+};
+const API_BASE = getApiBase();
 
 const VOC_COLORS: Record<string, string> = {
   aeroplane:'#87CEEB', bicycle:'#FFA500', bird:'#FFD700', boat:'#00BFFF',
@@ -38,8 +44,10 @@ function ProcessingContent() {
     const start = Date.now()
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now()-start)/1000)), 1000)
 
-    const wsUrl = `${API_BASE.replace('https','wss').replace('http','ws')}/ws/${jobId}`
-    const ws = new WebSocket(wsUrl)
+    const apiOrigin = API_BASE || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : '');
+    const wsUrl = jobId ? `${apiOrigin.replace('http','ws')}/ws/${jobId}` : '';
+    const ws = wsUrl ? new WebSocket(wsUrl) : null;
+    if (!ws) return;
 
     ws.onmessage = (evt) => {
       const data = JSON.parse(evt.data)
@@ -59,7 +67,8 @@ function ProcessingContent() {
   const pollFallback = () => {
     const iv = setInterval(async () => {
       try {
-        const d = await fetch(`${API_BASE}/api/status/${jobId}`).then(r=>r.json())
+        const endpoint = API_BASE ? `${API_BASE}/api/status/${jobId}` : `api/status/${jobId}`
+        const d = await fetch(endpoint).then(r=>r.json())
         setStatus(d.status)
         if (d.pct !== undefined) setPct(d.pct)
         if (d.detected) setDetected(d.detected)
