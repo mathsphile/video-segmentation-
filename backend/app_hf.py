@@ -12,14 +12,11 @@ import os
 import uuid
 import asyncio
 import logging
+import sys
+import os
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict
-
-from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+# Add current directory to path so relative imports work without package structure
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from inference import process_video, get_model, VOC_CLASSES
 
